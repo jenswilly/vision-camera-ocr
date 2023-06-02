@@ -1,5 +1,5 @@
 {
-  "name": "vision-camera-ocr",
+  "name": "@shortcut/vision-camera-ocr",
   "version": "0.1.0",
   "description": "VisionCamera Frame Processor Plugin to provide OCR support",
   "main": "lib/commonjs/index",
@@ -16,6 +16,7 @@
   "scripts": {
     "test": "jest",
     "typescript": "tsc --noEmit",
+	"prepack": "bob build",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
     "release:major": "npm version $(semver $npm_package_version -i major) && npm publish --tag latest",
     "release:minor": "npm version $(semver $npm_package_version -i minor) && npm publish --tag latest",
@@ -26,7 +27,7 @@
     "ios",
     "android"
   ],
-  "repository": "https://github.com/aarongrider/vision-camera-ocr",
+  "repository": "https://github.com/jenswilly/vision-camera-ocr",
   "author": "Aaron Grider <aaron.grider@gmail.com> (https://github.com/aarongrider)",
   "license": "MIT",
   "bugs": {
@@ -37,33 +38,66 @@
     "registry": "https://registry.npmjs.org/"
   },
   "devDependencies": {
-    "@babel/core": "^7.22.1",
-    "@babel/preset-env": "^7.22.2",
-    "@react-native-community/eslint-config": "^3.2.0",
-    "@types/jest": "^29.5.1",
-    "@types/react": "^17.0.18",
-    "@types/react-native": "0.64.13",
-    "babel-jest": "^29.5.0",
-    "eslint": "^8.41.0",
-    "jest": "^29.5.0",
-    "semver": "^7.5.1",
-    "ts-jest": "^29.1.0",
-    "typescript": "^5.0.4",
-    "react": "17.0.1",
-    "react-native": "0.64.2",
-    "react-native-vision-camera": "^2.6.1",
-    "react-native-reanimated": "2.2.0"
+    "@react-native-community/eslint-config": "^3.0.2",
+    "@release-it/conventional-changelog": "^5.0.0",
+    "@types/jest": "^28.1.2",
+    "@types/react": "~17.0.21",
+    "@types/react-native": "0.70.0",
+    "commitlint": "^17.0.2",
+    "del-cli": "^5.0.0",
+    "eslint": "^8.4.1",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "jest": "^28.1.1",
+    "pod-install": "^0.1.0",
+    "prettier": "^2.0.5",
+    "react": "18.2.0",
+    "react-native": "0.71.8",
+    "react-native-builder-bob": "^0.20.0",
+    "release-it": "^15.0.0",
+    "typescript": "^4.5.2",
+	"react-native-vision-camera": "^2.6.1",
+    "react-native-reanimated": "2.17.0"
+  },
+  "resolutions": {
+    "@types/react": "17.0.21"
   },
   "peerDependencies": {
     "react": "*",
     "react-native": "*"
   },
+  "engines": {
+    "node": ">= 16.0.0"
+  },
+  "packageManager": "^yarn@1.22.15",
   "jest": {
     "preset": "react-native",
     "modulePathIgnorePatterns": [
       "<rootDir>/example/node_modules",
       "<rootDir>/lib/"
     ]
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  },
+  "release-it": {
+    "git": {
+      "commitMessage": "chore: release ${version}",
+      "tagName": "v${version}"
+    },
+    "npm": {
+      "publish": true
+    },
+    "github": {
+      "release": true
+    },
+    "plugins": {
+      "@release-it/conventional-changelog": {
+        "preset": "angular"
+      }
+    }
   },
   "eslintConfig": {
     "root": true,
@@ -76,10 +110,10 @@
         "error",
         {
           "quoteProps": "consistent",
-          "singleQuote": true,
-          "tabWidth": 2,
+          "singleQuote": false,
+          "tabWidth": 4,
           "trailingComma": "es5",
-          "useTabs": false
+          "useTabs": true
         }
       ]
     }
@@ -90,10 +124,10 @@
   ],
   "prettier": {
     "quoteProps": "consistent",
-    "singleQuote": true,
-    "tabWidth": 2,
+    "singleQuote": false,
+    "tabWidth": 4,
     "trailingComma": "es5",
-    "useTabs": false
+    "useTabs": true
   },
   "react-native-builder-bob": {
     "source": "src",
