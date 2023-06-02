@@ -4,6 +4,25 @@ import AVFoundation
 @objc(OCRFrameProcessorPlugin)
 public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
 
+	struct BlockFrame: Encodable {
+		let x: CGFloat
+		let y: CGFloat
+		let width: CGFloat
+		let height: CGFloat
+		let boundingCenterX: CGFloat
+		let boundingCenterY: CGFloat
+	}
+
+	struct Block: Encodable {
+		let text: String
+		let frame: BlockFrame
+	}
+
+	struct Result: Encodable {
+		let text: String
+		let blocks: [Block]
+	}
+
 	/*
 	 private static var textRecognizer = TextRecognizer.textRecognizer()
 
@@ -105,27 +124,37 @@ public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
 	 }
 	 */
 
+	private static let jsonEncoder = JSONEncoder()
+
 	private static func recognizeTextHandler(request: VNRequest, error: Error?) {
 		if #available(iOS 14.0, *) {
 			guard let observations = request.results as? [VNRecognizedTextObservation] else {
 				return
 			}
 
-			let recognizedStrings = observations.compactMap { observation in
-				// Return the string of the top VNRecognizedText instance.
-				return observation.topCandidates(1).first?.string
+			let recognitions: [Block] = observations.compactMap { observation in
+				// Find the top observation.
+				guard let candidate = observation.topCandidates(1).first else { return nil }
+
+				// Raw rect
+				// Find the bounding-box observation for the string range.
+				let stringRange = candidate.string.startIndex..<candidate.string.endIndex
+				guard let box = try? candidate.boundingBox(for: stringRange) else { return nil }
+
+				// Get the normalized CGRect value.
+				let frame = BlockFrame(x: box.topLeft.x, y: box.topLeft.y, width: box.boundingBox.width, height: box.boundingBox.height, boundingCenterX: box.boundingBox.midX, boundingCenterY: box.boundingBox.midY)
+
+				return Block(text: candidate.string, frame: frame)
 			}
 
-			// Add the found strings to the static array
-			for str in recognizedStrings {
-				foundResults.append(str)
-			}
+			// Add to external array
+			foundResults.append(contentsOf: recognitions)
 		} else {
 			// Fallback on earlier versions
 		}
 	}
 
-	static var foundResults: [String] = []
+	static var foundResults: [Block] = []
 
 	@objc
 	public static func callback(_ frame: Frame!, withArgs _: [Any]!) -> Any! {
@@ -152,15 +181,27 @@ public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
 				return nil
 			}
 
-			return [
-				"result": [
-					"text": foundResults.joined(separator: "|"),
-					"blocks": [] as [[String: Any]],
-				] as [String : Any]
-			]
+			let resultObject = ["result": [
+				"text": foundResults.map { $0.text }.joined(separator: " "),
+				"blocks": foundResults.map { block in
+					[
+						"text": block.text,
+						"frame": [
+							"x": block.frame.x,
+							"y": 1 - block.frame.y,		// Flip Y-axis to match top-left → bottom-right coordinate system
+							"width": block.frame.width,
+							"height": block.frame.height,
+							"boundingCenterX": block.frame.boundingCenterX,
+							"boundingCenterY": block.frame.boundingCenterY,
+						]
+					] as [String : Any]
+				}
+			] as [String : Any]]
+			return resultObject
 		} else {
 			// Pre-iOS 14: return empty
 			return nil
 		}
 	}
 }
+
