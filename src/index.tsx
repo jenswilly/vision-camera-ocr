@@ -35,6 +35,7 @@ type TextBlock = {
 type Text = {
 	text: string;
 	blocks: TextBlock[];
+	imagePath: string | null | undefined;
 };
 
 export type OCRFrame = {
