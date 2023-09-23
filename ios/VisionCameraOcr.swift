@@ -157,11 +157,20 @@ public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
 	static var foundResults: [Block] = []
 
 	@objc
-	public static func callback(_ frame: Frame!, withArgs _: [Any]!) -> Any! {
+	public static func callback(_ frame: Frame!, withArgs args: [Any]!) -> Any! {
+		var fileUrl: URL?
 
-		guard (CMSampleBufferGetImageBuffer(frame.buffer) != nil) else {
-			print("Failed to get image buffer from sample buffer.")
-			return nil
+		// Only save image if args.fileName is not empty
+		if !args.isEmpty {
+			if let options = args[0] as? NSDictionary, let filename = options["fileName"] as? String {
+				guard let cvImageBuffer = CMSampleBufferGetImageBuffer(frame.buffer) else {
+					print("Failed to get image buffer from sample buffer.")
+					return nil
+				}
+				let ciImage = CIImage(cvImageBuffer: cvImageBuffer)
+				fileUrl = FileManager.default.temporaryDirectory.appendingPathComponent(filename).appendingPathExtension("jpg")
+				ciImage.jpgWrite(url: fileUrl!)
+			}
 		}
 
 		if #available(iOS 14.0, *) {
@@ -195,7 +204,8 @@ public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
 							"boundingCenterY": block.frame.boundingCenterY,
 						]
 					] as [String : Any]
-				}
+				},
+				"imagePath": (fileUrl?.path ?? nil) as Any
 			] as [String : Any]]
 			return resultObject
 		} else {
@@ -205,3 +215,20 @@ public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
 	}
 }
 
+// https://stackoverflow.com/q/59330149/1632704
+extension CIImage {
+	static let writeContext = CIContext(mtlDevice: MTLCreateSystemDefaultDevice()!, options: [
+		// using an extended working color space allows you to retain wide gamut information, e.g., if the input is in DisplayP3
+		.workingColorSpace: CGColorSpace(name: CGColorSpace.extendedSRGB)!,
+		.workingFormat: CIFormat.RGBAh // 16 bit color depth, needed in extended space
+	])
+
+	func jpgWrite(url: URL) {
+		// write the output in the same color space as the input; fallback to sRGB if it can't be determined
+		let outputColorSpace = colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!
+		do {
+			try CIImage.writeContext.writeJPEGRepresentation(of: self, to: url, colorSpace: outputColorSpace, options: [:])
+		} catch {
+		}
+	}
+}
