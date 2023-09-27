@@ -9,7 +9,11 @@ import com.mrousavy.camera.frameprocessor.FrameProcessorPlugin
 
 class VisionCameraOcrPackage : ReactPackage {
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-        FrameProcessorPlugin.register(OCRFrameProcessorPlugin())
+        // https://www.dynamsoft.com/codepool/react-native-vision-camera-label-recognition-plugin-android.html
+        val plugin = OCRFrameProcessorPlugin();
+        plugin.context = reactContext
+        FrameProcessorPlugin.register(plugin)
+
         return emptyList()
     }
 

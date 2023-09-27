@@ -36,6 +36,10 @@ type Text = {
 	text: string;
 	blocks: TextBlock[];
 	imagePath: string | null | undefined;
+	// Next three are used only on Android
+	width: number | undefined;
+	height: number | undefined;
+	rotation: number | undefined;
 };
 
 export type OCRFrame = {

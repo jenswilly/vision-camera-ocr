@@ -1,10 +1,12 @@
 package com.visioncameraocr
 
 import android.annotation.SuppressLint
-import android.graphics.Point
-import android.graphics.Rect
+import android.graphics.*
 import android.media.Image
+import android.util.Log
 import androidx.camera.core.ImageProxy
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableNativeArray
 import com.facebook.react.bridge.WritableNativeMap
 import com.google.android.gms.tasks.Task
@@ -14,8 +16,13 @@ import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.mrousavy.camera.frameprocessor.FrameProcessorPlugin
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.nio.ByteBuffer
 
 class OCRFrameProcessorPlugin: FrameProcessorPlugin("scanOCR") {
+    var context: ReactApplicationContext? = null
 
     private fun getBlockArray(blocks: MutableList<Text.TextBlock>): WritableNativeArray {
         val blockArray = WritableNativeArray()
@@ -86,8 +93,8 @@ class OCRFrameProcessorPlugin: FrameProcessorPlugin("scanOCR") {
         val frame = WritableNativeMap()
 
         if (boundingBox != null) {
-            frame.putDouble("x", boundingBox.exactCenterX().toDouble())
-            frame.putDouble("y", boundingBox.exactCenterY().toDouble())
+            frame.putDouble("x", boundingBox.left.toDouble())
+            frame.putDouble("y", boundingBox.top.toDouble())
             frame.putInt("width", boundingBox.width())
             frame.putInt("height", boundingBox.height())
             frame.putInt("boundingCenterX", boundingBox.centerX())
@@ -97,7 +104,6 @@ class OCRFrameProcessorPlugin: FrameProcessorPlugin("scanOCR") {
     }
 
     override fun callback(frame: ImageProxy, params: Array<Any>): Any? {
-
         val result = WritableNativeMap()
 
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -105,13 +111,65 @@ class OCRFrameProcessorPlugin: FrameProcessorPlugin("scanOCR") {
         @SuppressLint("UnsafeOptInUsageError")
         val mediaImage: Image? = frame.getImage()
 
+        // Log.w("JWJ:", "img dimensions:" + mediaImage?.width.toString() + " x " + mediaImage?.height.toString());
+
         if (mediaImage != null) {
+            var imagePath: String? = null;
+            val fileName = (params[0] as? ReadableMap)?.getString("fileName");
+            fileName?.let { fileName ->
+                context?.let { context ->
+                    val path = context.filesDir
+                    val ocrDirectory = File(path, "modesto")
+                    ocrDirectory.mkdirs()
+
+                    val file = File(ocrDirectory, fileName + ".jpg")
+                    if (file.exists()) {
+                        file.delete()
+                    }
+                    imagePath = file.absolutePath
+                    // Log.w("JWJ:", "Filepath:" + imagePath);
+
+
+                    val yBuffer: ByteBuffer = mediaImage.planes.get(0).getBuffer()
+                    val uBuffer: ByteBuffer = mediaImage.planes.get(1).getBuffer()
+                    val vBuffer: ByteBuffer = mediaImage.planes.get(2).getBuffer()
+
+                    val ySize: Int = yBuffer.remaining()
+                    val uSize: Int = uBuffer.remaining()
+                    val vSize: Int = vBuffer.remaining()
+
+                    val nv21 = ByteArray(ySize + uSize + vSize)
+                    yBuffer.get(nv21, 0, ySize)
+                    vBuffer.get(nv21, ySize, vSize)
+                    uBuffer.get(nv21, ySize + vSize, uSize)
+
+                    val yuvImage = YuvImage(nv21, ImageFormat.NV21, mediaImage.getWidth(), mediaImage.getHeight(), null)
+                    val byteArrayOut = ByteArrayOutputStream()
+                    yuvImage.compressToJpeg(Rect(0, 0, yuvImage.getWidth(), yuvImage.getHeight()), 75, byteArrayOut)
+
+                    val imageBytes: ByteArray = byteArrayOut.toByteArray()
+                    val bm: Bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+
+                    // Save
+                    val out = FileOutputStream(file)
+                    bm.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                    out.flush()
+                    out.close()
+                    // Log.w("JWJ:", "saved");
+                }
+            }
+
+            // Log.w("JWJ:", "rotation: " + frame.imageInfo.rotationDegrees.toString());
             val image = InputImage.fromMediaImage(mediaImage, frame.imageInfo.rotationDegrees)
             val task: Task<Text> = recognizer.process(image)
             try {
                 val text: Text = Tasks.await<Text>(task)
                 result.putString("text", text.text)
                 result.putArray("blocks", getBlockArray(text.textBlocks))
+                result.putString("imagePath", imagePath)
+                result.putInt("width", mediaImage?.width);
+                result.putInt("height", mediaImage?.height);
+                result.putInt("rotation", frame.imageInfo.rotationDegrees);
             } catch (e: Exception) {
                 return null
             }
