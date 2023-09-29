@@ -2,7 +2,7 @@ import Vision
 import AVFoundation
 
 @objc(OCRFrameProcessorPlugin)
-public class OCRFrameProcessorPlugin: NSObject, FrameProcessorPluginBase {
+public class OCRFrameProcessorPlugin: FrameProcessorPlugin {
 
 	struct BlockFrame: Encodable {
 		let x: CGFloat
