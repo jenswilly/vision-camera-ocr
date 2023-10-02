@@ -14,6 +14,7 @@
 										  withInitializer:^FrameProcessorPlugin*(NSDictionary* options) {
 		return [[OCRFrameProcessorPlugin alloc] init];
 	}];
+	NSLog(@"📷 Plugin registered: scanOCR");
 }
 
 @end
