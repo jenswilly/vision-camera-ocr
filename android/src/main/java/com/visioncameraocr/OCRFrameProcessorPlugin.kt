@@ -3,8 +3,6 @@ package com.visioncameraocr
 import android.annotation.SuppressLint
 import android.graphics.*
 import android.media.Image
-import android.util.Log
-import androidx.camera.core.ImageProxy
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableNativeArray
@@ -15,15 +13,14 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.mrousavy.camera.frameprocessor.Frame
 import com.mrousavy.camera.frameprocessor.FrameProcessorPlugin
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 
-class OCRFrameProcessorPlugin: FrameProcessorPlugin("scanOCR") {
-    var context: ReactApplicationContext? = null
-
+class OCRFrameProcessorPlugin(private val context: ReactApplicationContext?): FrameProcessorPlugin() {
     private fun getBlockArray(blocks: MutableList<Text.TextBlock>): WritableNativeArray {
         val blockArray = WritableNativeArray()
 
@@ -103,7 +100,23 @@ class OCRFrameProcessorPlugin: FrameProcessorPlugin("scanOCR") {
         return frame
     }
 
-    override fun callback(frame: ImageProxy, params: Array<Any>): Any? {
+    /**
+     * New callback function
+     */
+    override fun callback(frame: Frame, params: MutableMap<String, Any>?): Any? {
+        frame.orientation
+        params?.let { options ->
+            return oldCallback(frame, Array<Any>(1) { options })
+        }
+
+        // Fallthrough
+        return null
+    }
+
+    /**
+     * Original callback function
+     */
+    fun oldCallback(frame: Frame, params: Array<Any>): Any? {
         val result = WritableNativeMap()
 
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -111,12 +124,10 @@ class OCRFrameProcessorPlugin: FrameProcessorPlugin("scanOCR") {
         @SuppressLint("UnsafeOptInUsageError")
         val mediaImage: Image? = frame.getImage()
 
-        // Log.w("JWJ:", "img dimensions:" + mediaImage?.width.toString() + " x " + mediaImage?.height.toString());
-
         if (mediaImage != null) {
             var imagePath: String? = null;
-            val fileName = (params[0] as? ReadableMap)?.getString("fileName");
-            fileName?.let { fileName ->
+            val fileNameOpt = (params[0] as? ReadableMap)?.getString("fileName");
+            fileNameOpt?.let { fileName ->
                 context?.let { context ->
                     val path = context.filesDir
                     val ocrDirectory = File(path, "modesto")
@@ -159,17 +170,25 @@ class OCRFrameProcessorPlugin: FrameProcessorPlugin("scanOCR") {
                 }
             }
 
-            // Log.w("JWJ:", "rotation: " + frame.imageInfo.rotationDegrees.toString());
-            val image = InputImage.fromMediaImage(mediaImage, frame.imageInfo.rotationDegrees)
+            // Convert rotation string to degrees
+            val rotationDegrees = when(frame.orientation) {
+                "portrait" -> 0
+                "landscape-right" -> 90
+                "portrait-upside-down" -> 180
+                "landscape-left" -> 270
+                else -> 0
+            }
+
+            val image = InputImage.fromMediaImage(mediaImage, rotationDegrees)
             val task: Task<Text> = recognizer.process(image)
             try {
                 val text: Text = Tasks.await<Text>(task)
                 result.putString("text", text.text)
                 result.putArray("blocks", getBlockArray(text.textBlocks))
                 result.putString("imagePath", imagePath)
-                result.putInt("width", mediaImage?.width);
-                result.putInt("height", mediaImage?.height);
-                result.putInt("rotation", frame.imageInfo.rotationDegrees);
+                result.putInt("width", mediaImage.width)
+                result.putInt("height", mediaImage.height)
+                result.putInt("rotation", rotationDegrees);
             } catch (e: Exception) {
                 return null
             }
